@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "discord.js": "^14.15.3"
+  },
+  "name": "greenbot",
+  "version": "1.0.0",
+  "description": "Multi-purpose Discord bot for the Greenhouse Discords.",
+  "main": "index.js",
+  "devDependencies": {
+    "eslint": "^9.7.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "MerchantPug",
+  "license": "MPL-2.0"
+}
