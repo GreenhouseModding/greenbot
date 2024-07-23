@@ -3,6 +3,7 @@ import ms from 'ms'
 import { ApplicationCommandOptionTypes } from '@discordeno/types'
 import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User, avatarUrl } from '@discordeno/bot'
 import { createTestCommand } from '../../../util/commands.js'
+import { closestStartOfDay } from '../../../util/time.js'
 import { bot, logger, user as botUser } from '../../../bot.js'
 import { operatableGuilds } from '../../../config.js'
 
@@ -79,7 +80,7 @@ createTestCommand({
 
         const guildBan = { deleteMessageSeconds: deleteUntil }
         const dmChannel = await interaction.bot.helpers.getDmChannel(user.user.id)
-        const unbanTime = Math.floor((Date.now() + msDuration) / 1000)
+        const unbanTime = Math.floor((closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)) / 1000)
 
         if (!dmChannel)
             await banMember(interaction, user.user, guildBan, msDuration, reason, true)
