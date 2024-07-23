@@ -43,7 +43,7 @@ createTestCommand({
     execute: async function (interaction: Interaction, args: Record<string, unknown>) {
         await interaction.defer(true)
         
-        const interactionMember = interaction.member;
+        const interactionMember = interaction.member
         if (!interactionMember) {
             interaction.respond(`Cannot ban a user without a member behind the ban.`)
             return
@@ -56,7 +56,7 @@ createTestCommand({
                 return
         }
 
-        var deleteUntil = 0;
+        var deleteUntil = 0
         if (delete_until)
             deleteUntil = ms(delete_until) / 1000
         
@@ -166,7 +166,7 @@ function getMaxRolePosition(target: Member, guild: Guild) : number {
     if (!target.roles)
         return 0
     return Math.max(...target.roles.map(roleId => {
-        const role = guild.roles.get(roleId);
+        const role = guild.roles.get(roleId)
         if (!role)
             return 0
         return role.position
