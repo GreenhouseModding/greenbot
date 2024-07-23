@@ -1,12 +1,13 @@
 import ms from 'ms'
 
 import { ApplicationCommandOptionTypes } from '@discordeno/types'
-import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User } from '@discordeno/bot'
+import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User, avatarUrl } from '@discordeno/bot'
 import { createTestCommand } from '../../../util/commands.js'
-import { bot, logger } from '../../../bot.js'
+import { bot, logger, user as botUser } from '../../../bot.js'
 import { operatableGuilds } from '../../../config.js'
+import { log } from 'node:console'
 
-const permaAliases = [ "perma", "permaban" ]
+const permaAliases = [ "perma", "permaban", "permanent" ]
 
 createTestCommand({
     command: {
@@ -21,14 +22,14 @@ createTestCommand({
                 required: true
             },
             {
-                name: 'duration',
-                description: 'The duration of the ban. (Examples: 12h, 7d, 28d, 1y)',
+                name: 'reason',
+                description: 'The reason for the ban.',
                 type: ApplicationCommandOptionTypes.String,
                 required: true
             },
             {
-                name: 'reason',
-                description: 'The reason for the ban.',
+                name: 'duration',
+                description: 'The duration of the ban. (Examples: perma, permanent, 12h, 7d, 28d, 1y)',
                 type: ApplicationCommandOptionTypes.String,
                 required: true
             },
@@ -56,6 +57,16 @@ createTestCommand({
                 return
         }
 
+        var msDuration = -1
+        const isPermanent = permaAliases.some(alias => duration.toLocaleLowerCase() === alias)
+        if (!isPermanent) {
+            try {
+                msDuration = ms(duration)
+            } catch (ignored) {
+                interaction.respond(`Invalid duration: '${duration}'.`)
+            }
+        }
+
         var deleteUntil = 0
         if (delete_until)
             deleteUntil = ms(delete_until) / 1000
@@ -67,31 +78,41 @@ createTestCommand({
             )
         }
 
-        const durString = permaAliases.some(alias => duration.toLocaleLowerCase() === alias) ? 'permanently' : `for ${ms(ms(duration), { long: true })}`
-
         const guildBan = { deleteMessageSeconds: deleteUntil }
         const dmChannel = await interaction.bot.helpers.getDmChannel(user.user.id)
+        const unbanTime = Math.floor((Date.now() + msDuration) / 1000)
 
         if (!dmChannel)
-            await banMember(interaction, user.user, guildBan, reason, true)
+            await banMember(interaction, user.user, guildBan, msDuration, reason, true)
         
+        const durString = isPermanent ? 'permanently' : `for ${ms(msDuration, { long: true })}`
+        const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${unbanTime}:f>\nReason Specified by Moderators: ${reason}`
+
+        const botAvatarUrl = avatarUrl(botUser.username, botUser.discriminator, { avatar: botUser.avatar})
+
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
             .setColor('#2ecc71')
-            .setAuthor('Greenhouse Team Discords', { icon_url: 'https://cdn.modrinth.com/data/bkcXk7FA/65e7e57a455c533d38cab64119291903d40c9ebd.png' })
+            .setAuthor('Greenhouse Team Discords', { icon_url: botAvatarUrl } )
             .setTitle(`You have been banned from the Greenhouse Team Discords ${durString}.`)
-            .setDescription(`Reason Specified: ${reason}`)
+            .setDescription(description)
             .addField('Ban Appeal Forum', 'You may request an appeal through [this link.](https://www.youtube.com/watch?v=dQw4w9WgXcQ)')
             .validate()
         })
-        await banMember(interaction, user.user, guildBan, reason, false)
+        await banMember(interaction, user.user, guildBan, msDuration, reason, false)
     }
 })
 
-async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, reason: string, failedDm: boolean) {
+async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, duration: number, reason: string, failedDm: boolean) {
     // TODO: Add user to a database, implement automatic unbans with it in mind.
-    for (var guildId of operatableGuilds)
-        await interaction.bot.helpers.banMember(guildId, user.id, guildBan, reason)
+    for (var guildId of operatableGuilds) {
+        try {
+            await interaction.bot.helpers.banMember(guildId, user.id, guildBan, reason)
+        } catch (ex) {
+            logger.error(`Could not ban user ${user.username}. Maybe they are already banned?`)
+        }
+    }
 
+    logger.info(`User ${user.username} has been banned by ${interaction.user.username}.`)
     var message = `Successfully banned user ${user.username}
     \nFor reason: ${reason}`
     if (failedDm) {

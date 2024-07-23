@@ -4,6 +4,7 @@ import { configs } from './config.js'
 export const bot = createBot({
   token: configs.token
 })
+export const user = (await bot.helpers.getUser(bot.id))
 
 export const logger = bot.logger
 
