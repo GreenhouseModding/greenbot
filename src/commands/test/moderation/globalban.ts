@@ -4,7 +4,7 @@ import { ApplicationCommandOptionTypes } from '@discordeno/types'
 import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User } from '@discordeno/bot'
 import { createTestCommand } from '../../../util/commands.js'
 import { bot, logger } from '../../../bot.js'
-import { configs, operatableGuilds } from '../../../config.js'
+import { operatableGuilds } from '../../../config.js'
 
 const permaAliases = [ "perma", "permaban" ]
 
@@ -22,31 +22,9 @@ createTestCommand({
             },
             {
                 name: 'duration',
-                description: 'The duration of the ban.',
+                description: 'The duration of the ban. (Examples: 12h, 7d, 28d, 1y)',
                 type: ApplicationCommandOptionTypes.String,
-                required: true,
-                choices: [
-                    {
-                        name: 'Permanent',
-                        value: "perma"
-                    },
-                    {
-                        name: '1 Day',
-                        value: "1d"
-                    },
-                    {
-                        name: '1 Week',
-                        value: "7d"
-                    },
-                    {
-                        name: '1 Month',
-                        value: "28d"
-                    },
-                    {
-                        name: '1 Year',
-                        value: "1y"
-                    }
-                ]
+                required: true
             },
             {
                 name: 'reason',
@@ -56,44 +34,14 @@ createTestCommand({
             },
             {
                 name: 'delete_until',
-                description: 'The duration to delete all messages before.',
+                description: 'The duration to delete all messages before. Has a maximum of 7 days. (Examples: 1d, 4d, 7d)',
                 type: ApplicationCommandOptionTypes.String,
-                required: false,
-                choices: [
-                    {
-                        name: 'None',
-                        value: "0d"
-                    },
-                    {
-                        name: '1 Day',
-                        value: "1d"
-                    },
-                    {
-                        name: '2 Days',
-                        value: "2d"
-                    },
-                    {
-                        name: '3 Days',
-                        value: "3d"
-                    },
-                    {
-                        name: '4 Days',
-                        value: "4d"
-                    },
-                    {
-                        name: '5 Days',
-                        value: "5d"
-                    },
-                    {
-                        name: '1 Week',
-                        value: "7d"
-                    }
-                ]
+                required: false
             }
         ]
     },
     execute: async function (interaction: Interaction, args: Record<string, unknown>) {
-        await interaction.defer()
+        await interaction.defer(true)
         
         const interactionMember = interaction.member;
         if (!interactionMember) {
@@ -104,15 +52,13 @@ createTestCommand({
         const { user, duration, delete_until, reason } = args as { user: {user: User, member?: Member}; duration: string; delete_until?: string; reason: string  }
 
         for (var guildId of operatableGuilds) {
-            if (await permissionCheck(interaction, guildId, interactionMember as Member, user.user.id))
+            if (await !hasPermissions(interaction, guildId, interactionMember as Member, user.user.id))
                 return
         }
 
         var deleteUntil = 0;
         if (delete_until)
-            ms(delete_until) / 1000
-        
-        var msDur = ms(duration)
+            deleteUntil = ms(delete_until) / 1000
         
         if (deleteUntil > ms('7d') / 1000) {
             await interaction.respond(
@@ -121,13 +67,14 @@ createTestCommand({
             )
         }
 
-        const durString = permaAliases.some(alias => duration.toLocaleLowerCase() === alias) ? 'permanently' : `for ${ms(msDur, { long: true })}`
+        const durString = permaAliases.some(alias => duration.toLocaleLowerCase() === alias) ? 'permanently' : `for ${ms(ms(duration), { long: true })}`
 
         const guildBan = { deleteMessageSeconds: deleteUntil }
         const dmChannel = await interaction.bot.helpers.getDmChannel(user.user.id)
-        if (!dmChannel) {
+
+        if (!dmChannel)
             await banMember(interaction, user.user, guildBan, reason, true)
-        }
+        
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
             .setColor('#2ecc71')
             .setAuthor('Greenhouse Team Discords', { icon_url: 'https://cdn.modrinth.com/data/bkcXk7FA/65e7e57a455c533d38cab64119291903d40c9ebd.png' })
@@ -142,8 +89,8 @@ createTestCommand({
 
 async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, reason: string, failedDm: boolean) {
     // TODO: Add user to a database, implement automatic unbans with it in mind.
-    await interaction.bot.helpers.banMember(configs.moddingGuildId, user.id, guildBan, reason)
-    await interaction.bot.helpers.banMember(configs.eventsGuildId, user.id, guildBan, reason)
+    for (var guildId of operatableGuilds)
+        await interaction.bot.helpers.banMember(guildId, user.id, guildBan, reason)
 
     var message = `Successfully banned user ${user.username}
     \nFor reason: ${reason}`
@@ -153,61 +100,66 @@ async function banMember(interaction: Interaction, user: User, guildBan: CreateG
 
     await interaction.respond(
         message,
-        { isPrivate: true} 
+        { isPrivate: true }
     )
 }
 
-async function permissionCheck(interaction: Interaction, guildId: bigint, sender: Member, userId: bigint) : Promise<boolean> {
+async function hasPermissions(interaction: Interaction, guildId: bigint, sender: Member, userId: bigint) : Promise<boolean> {
     if (userId == interaction.bot.id) {
         await interaction.respond(
             `I cannot ban myself.`,
             { isPrivate: true }
         )
-        return true
+        return false
     }
     
-    const target = await interaction.bot.helpers.getMember(guildId, userId)
-    if (!target)
-        return false
+    var target
+    try {
+        target = await interaction.bot.helpers.getMember(guildId, userId)
+    } catch (error) {
+        return true
+    }
 
-    const botMember = await interaction.bot.helpers.getMember(guildId, interaction.bot.id)
-    if (!botMember)
-        return false
+    var botMember 
+    try {
+        botMember = await interaction.bot.helpers.getMember(guildId, interaction.bot.id)
+    } catch (error) {
+        return true
+    }
 
-    const guild = await interaction.bot.helpers.getGuild(guildId)
-    if (!guild) {
+    var guild
+    try {
+        guild = await interaction.bot.helpers.getGuild(guildId)
+    } catch (error) {
         bot.logger.error(`Could not find target guild ${guildId}.`)
         await interaction.respond(
             `Could not find target guild. This should not happen!
             \nPlease report this to a developer of the bot.`,
             { isPrivate: true }
         )
-        return true
+        return false
     }
 
     const targetPermissions = getMaxRolePosition(target, guild)
     const senderPermissions = getMaxRolePosition(sender, guild)
     const botPermissions = getMaxRolePosition(botMember, guild)
 
-    if (!targetPermissions|| !senderPermissions || !botPermissions)
-        return false
-
     if (targetPermissions >= senderPermissions) {
         await interaction.respond(
             `Cannot ban a user with the same or higher permissions in guild ${guild.name}.`,
-            { isPrivate: true} 
+            { isPrivate: true }
         )
-        return true
+        return false
     }
     if (targetPermissions >= botPermissions) {
         await interaction.respond(
             `Cannot ban a user with the same or higher permissions than the bot in guild ${guild.name}.`,
-            { isPrivate: true} 
+            { isPrivate: true }
         )
-        return true
+        return false
     }
 
-    return false
+    return true
 }
 
 function getMaxRolePosition(target: Member, guild: Guild) : number {
