@@ -5,7 +5,6 @@ import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User, avatarU
 import { createTestCommand } from '../../../util/commands.js'
 import { bot, logger, user as botUser } from '../../../bot.js'
 import { operatableGuilds } from '../../../config.js'
-import { log } from 'node:console'
 
 const permaAliases = [ "perma", "permaban", "permanent" ]
 
