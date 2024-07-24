@@ -88,11 +88,9 @@ createTestCommand({
         const durString = isPermanent ? 'permanently' : `for ${ms(msDuration, { long: true })}`
         const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${unbanTime}:f>\nReason Specified by Moderators: ${reason}`
 
-        const botAvatarUrl = avatarUrl(botUser.username, botUser.discriminator, { avatar: botUser.avatar})
-
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
             .setColor('#2ecc71')
-            .setAuthor('Greenhouse Team Discords', { icon_url: botAvatarUrl } )
+            .setAuthor('Greenhouse Team Discords', { icon_url: "https://cdn.discordapp.com/avatars/876135519526977587/fe59baac695940ed7ac0e03b10376e57" } )
             .setTitle(`You have been banned from the Greenhouse Team Discords ${durString}.`)
             .setDescription(description)
             .addField('Ban Appeal Forum', 'You may request an appeal through [this link.](https://www.youtube.com/watch?v=dQw4w9WgXcQ)')
