@@ -36,12 +36,15 @@ export async function unbanExpiredBans() {
             await bot.helpers.unbanMember(configs.moddingGuildId, unbannable.UserId, "GreenBot ban duration has expired.")
             logger.info(`Unbanned user ${unbannable.UserId} as their GreenBot ban has expired.`)
             ++totalUnbanned
-         } catch (error) {
+        } catch (error) {
             logger.warn(`Failed to unban user ${unbannable.UserId} from Greenhouse Modding.`)
         }
     }
     db.prepare(`DELETE FROM list WHERE CAST(unbantime AS BIGINT) <= ? AND CAST(unbantime AS BIGINT) != -1`).run(currentTime)
-    logger.info(`Successfuly unbanned ${totalUnbanned} user(s).`)
+    if (totalUnbanned > 0)
+        logger.info(`Successfuly unbanned ${totalUnbanned} user(s).`)
+    else 
+        logger.info('Did not unban any users.')
 }
 
 function isUnbannable(obj: any): obj is Unbannable {
