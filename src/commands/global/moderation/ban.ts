@@ -1,20 +1,21 @@
 import ms from 'ms'
 
 import { ApplicationCommandOptionTypes } from '@discordeno/types'
-import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User } from '@discordeno/bot'
+import { createEmbeds, CreateGuildBan, DiscordInteractionContextType, Guild, Interaction, Member, User } from '@discordeno/bot'
 import { createGlobalCommand } from '../../../util/commands.js'
 import { closestStartOfDay } from '../../../util/time.js'
 import { bot, logger } from '../../../bot.js'
-import { operatableGuilds } from '../../../config.js'
 import { recordBan } from '../../../util/banDatabase.js'
+import { configs } from '../../../config.js'
 
 const permaAliases = [ "perma", "permaban", "permanent" ]
 
 createGlobalCommand({
     command: {
         name: 'ban',
-        description: 'Bans a target user across all Greenhouse Team ran Discord servers.',
+        description: 'Bans a target user across all Greenhouse Team Discord servers.',
         defaultMemberPermissions: ["BAN_MEMBERS"],
+        contexts: [ DiscordInteractionContextType.Guild ],
         options: [
             {
                 name: 'user',
@@ -53,10 +54,8 @@ createGlobalCommand({
         
         const { user, duration, delete_until, reason } = args as { user: {user: User, member?: Member}; duration: string; delete_until?: string; reason: string  }
 
-        for (var guildId of operatableGuilds) {
-            if (!hasPermissions(interaction, guildId, interactionMember as Member, user.user.id))
-                return
-        }
+        if (!hasPermissions(interaction, interactionMember as Member, user.user.id))
+               return
 
         var msDuration = -1
         const isPermanent = permaAliases.some(alias => duration.toLocaleLowerCase() === alias)
@@ -88,8 +87,6 @@ createGlobalCommand({
         const guildBan = { deleteMessageSeconds: deleteUntil }
         const dmChannel = await interaction.bot.helpers.getDmChannel(user.user.id)
         
-        const unbanTime = closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)
-        
         const durString = isPermanent ? 'permanently' : `for ${ms(msDuration, { long: true })}`
 
         if (!dmChannel) {
@@ -97,7 +94,7 @@ createGlobalCommand({
             return
         }
 
-        const unbanTimeSeconds = Math.floor(unbanTime / 1000)
+        const unbanTimeSeconds = Math.floor((closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)) / 1000)
         const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${unbanTimeSeconds}:f>\nReason Specified by Moderators: ${reason}`
 
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
@@ -114,12 +111,10 @@ createGlobalCommand({
 
 async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, duration: number, durString: string, reason: string, failedDm: boolean) {
     recordBan(user.id, duration, reason)
-    for (var guildId of operatableGuilds) {
-        try {
-            await interaction.bot.helpers.banMember(guildId, user.id, guildBan, reason)
-        } catch (ex) {
-            logger.error(`Could not ban user ${user.username}.`)
-        }
+    try {
+        await interaction.bot.helpers.banMember(configs.moddingGuildId, user.id, guildBan, reason)
+    } catch (ex) {
+        logger.error(`Could not ban user ${user.username} from Greenhouse Modding.`)
     }
 
     logger.info(`User ${user.username} has been banned by ${interaction.user.username}.`)
@@ -135,7 +130,7 @@ async function banMember(interaction: Interaction, user: User, guildBan: CreateG
     )
 }
 
-async function hasPermissions(interaction: Interaction, guildId: bigint, sender: Member, userId: bigint) : Promise<boolean> {
+async function hasPermissions(interaction: Interaction, sender: Member, userId: bigint) : Promise<boolean> {
     if (userId == interaction.bot.id) {
         await interaction.respond(
             `I cannot ban myself.`,
@@ -144,21 +139,23 @@ async function hasPermissions(interaction: Interaction, guildId: bigint, sender:
         return false
     }
     
-    var target
+    const guildId = configs.moddingGuildId
+
+    let target
     try {
         target = await interaction.bot.helpers.getMember(guildId, userId)
     } catch (error) {
         return true
     }
 
-    var botMember 
+    let botMember 
     try {
         botMember = await interaction.bot.helpers.getMember(guildId, interaction.bot.id)
     } catch (error) {
         return true
     }
 
-    var guild
+    let guild
     try {
         guild = await interaction.bot.helpers.getGuild(guildId)
     } catch (error) {

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { bot, logger } from '../bot.js'
 import { closestStartOfDay } from './time.js'
-import { operatableGuilds } from '../config.js'
+import { configs } from '../config.js'
 
 const db = new Database('./db/bans.db')
 
@@ -10,7 +10,7 @@ export async function createBanDb() {
 }
 
 export async function recordBan(userId: bigint, duration: number, reason: string) {
-    const unbanTime = closestStartOfDay(Date.now() + duration)
+    const unbanTime = duration == -1 ? -1 : closestStartOfDay(Date.now() + duration)
     createBanDb()
     await db.exec(`INSERT INTO list(userid, unbantime, reason) VALUES ('${userId}', '${unbanTime}', '${reason}') ON CONFLICT(userid) DO UPDATE SET unbantime = '${unbanTime}', reason = '${reason}'`)
     logger.info(`Successfully recorded ban of user ${userId} into db/bans.db.`)
@@ -20,7 +20,7 @@ export async function unbanExpiredBans() {
     logger.info(`Attempting to unban users...`)
     const currentTime = closestStartOfDay(Date.now())
 
-    const usersToUnbanStatement = db.prepare(`SELECT userid FROM list WHERE CAST(unbantime AS BIGINT) <= ?`)
+    const usersToUnbanStatement = db.prepare(`SELECT userid FROM list WHERE CAST(unbantime AS BIGINT) <= ? AND CAST(unbantime AS BIGINT) != -1`)
     const toUnban = usersToUnbanStatement.all(currentTime)
 
     let totalUnbanned = 0
@@ -32,23 +32,15 @@ export async function unbanExpiredBans() {
         const unbannable = value as Unbannable
         logger.info(`Attempting to unban user: ${unbannable.UserId}...`)
 
-        let successes = 0
-        for (const guildId of operatableGuilds) {
-            try {
-                await bot.helpers.unbanMember(guildId, unbannable.UserId, "GreenBot ban duration has expired.")
-                ++successes
-            } catch (error) {
-                const guild = await bot.helpers.getGuild(guildId)
-                logger.warn(`Could not unban user ${unbannable.UserId} from guild ${guild.name}`)
-                continue
-            }
-        }
-        if (successes > 0) {
+        try {
+            await bot.helpers.unbanMember(configs.moddingGuildId, unbannable.UserId, "GreenBot ban duration has expired.")
             logger.info(`Unbanned user ${unbannable.UserId} as their GreenBot ban has expired.`)
             ++totalUnbanned
+         } catch (error) {
+            logger.warn(`Failed to unban user ${unbannable.UserId} from Greenhouse Modding.`)
         }
     }
-    db.prepare(`DELETE FROM list WHERE CAST(unbantime AS BIGINT) <= ?`).run(currentTime)
+    db.prepare(`DELETE FROM list WHERE CAST(unbantime AS BIGINT) <= ? AND CAST(unbantime AS BIGINT) != -1`).run(currentTime)
     logger.info(`Successfuly unbanned ${totalUnbanned} user(s).`)
 }
 
