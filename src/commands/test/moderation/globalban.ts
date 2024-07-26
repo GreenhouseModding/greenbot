@@ -90,13 +90,15 @@ createTestCommand({
         
         const unbanTime = closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)
         
-        const durString = isPermanent ? 'permanently' : `for ${ms(unbanTime, { long: true })}`
+        const durString = isPermanent ? 'permanently' : `for ${ms(msDuration, { long: true })}`
 
         if (!dmChannel) {
             await banMember(interaction, user.user, guildBan, msDuration, durString, reason, true)
             return
         }
-        const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${Math.floor(unbanTime / 1000)}:f>\nReason Specified by Moderators: ${reason}`
+
+        const unbanTimeSeconds = Math.floor(unbanTime / 1000)
+        const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${unbanTimeSeconds}:f>\nReason Specified by Moderators: ${reason}`
 
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
             .setColor('#2ecc71')

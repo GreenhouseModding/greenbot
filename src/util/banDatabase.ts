@@ -6,7 +6,7 @@ import { operatableGuilds } from '../config.js'
 const db = new Database('./db/bans.db')
 
 export async function createBanDb() {
-    db.exec('CREATE TABLE IF NOT EXISTS list (UserId TEXT PRIMARY KEY, UnbanTime TEXT NOT NULL, Reason TEXT NOT NULL)') 
+    db.exec('CREATE TABLE IF NOT EXISTS List (UserId TEXT PRIMARY KEY, UnbanTime TEXT NOT NULL, Reason TEXT NOT NULL)') 
 }
 
 export async function recordBan(userId: bigint, duration: number, reason: string) {
