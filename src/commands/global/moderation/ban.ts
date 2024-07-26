@@ -1,8 +1,8 @@
 import ms from 'ms'
 
 import { ApplicationCommandOptionTypes } from '@discordeno/types'
-import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User, avatarUrl } from '@discordeno/bot'
-import { createTestCommand } from '../../../util/commands.js'
+import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User } from '@discordeno/bot'
+import { createGlobalCommand } from '../../../util/commands.js'
 import { closestStartOfDay } from '../../../util/time.js'
 import { bot, logger } from '../../../bot.js'
 import { operatableGuilds } from '../../../config.js'
@@ -10,7 +10,7 @@ import { recordBan } from '../../../util/banDatabase.js'
 
 const permaAliases = [ "perma", "permaban", "permanent" ]
 
-createTestCommand({
+createGlobalCommand({
     command: {
         name: 'ban',
         description: 'Bans a target user across all Greenhouse Team ran Discord servers.',
