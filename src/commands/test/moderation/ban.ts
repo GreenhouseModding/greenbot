@@ -12,7 +12,7 @@ const permaAliases = [ "perma", "permaban", "permanent" ]
 
 createTestCommand({
     command: {
-        name: 'globalban',
+        name: 'ban',
         description: 'Bans a target user across all Greenhouse Team ran Discord servers.',
         defaultMemberPermissions: ["BAN_MEMBERS"],
         options: [
