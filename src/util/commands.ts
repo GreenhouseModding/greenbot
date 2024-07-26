@@ -3,7 +3,6 @@ import { Collection, CreateApplicationCommand, Interaction } from "@discordeno/b
 export const allCommands = new Collection<string, Command>()
 export const globalCommands = new Collection<string, Command>()
 export const moddingCommands = new Collection<string, Command>()
-export const eventsCommands = new Collection<string, Command>()
 export const testCommands = new Collection<string, Command>()
 
 
@@ -15,15 +14,6 @@ export function createModdingCommand(command: Command): void {
     moddingCommands.set(command.command.name, command)
 }
 
-export function createEventsCommand(command: Command): void {
-    eventsCommands.set(command.command.name, command)
-}
-
-export function createModdingAndEventsCommand(command: Command): void {
-    moddingCommands.set(command.command.name, command)
-    eventsCommands.set(command.command.name, command)
-}
-
 export function createTestCommand(command: Command): void {
     testCommands.set(command.command.name, command)
 }
@@ -31,7 +21,6 @@ export function createTestCommand(command: Command): void {
 export async function createAllCommandMap() : Promise<void> {
     mergeCollections(globalCommands, allCommands)
     mergeCollections(moddingCommands, allCommands)
-    mergeCollections(eventsCommands, allCommands)
     mergeCollections(testCommands, allCommands)
 }
 
