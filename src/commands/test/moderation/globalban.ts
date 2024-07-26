@@ -4,8 +4,9 @@ import { ApplicationCommandOptionTypes } from '@discordeno/types'
 import { createEmbeds, CreateGuildBan, Guild, Interaction, Member, User, avatarUrl } from '@discordeno/bot'
 import { createTestCommand } from '../../../util/commands.js'
 import { closestStartOfDay } from '../../../util/time.js'
-import { bot, logger, user as botUser } from '../../../bot.js'
+import { bot, logger } from '../../../bot.js'
 import { operatableGuilds } from '../../../config.js'
+import { recordBan } from '../../../util/banDatabase.js'
 
 const permaAliases = [ "perma", "permaban", "permanent" ]
 
@@ -29,7 +30,7 @@ createTestCommand({
             },
             {
                 name: 'duration',
-                description: 'The duration of the ban. (Examples: perma, permanent, 12h, 7d, 28d, 1y)',
+                description: 'The duration of the ban. (Examples: perma, permanent, 1d, 7d, 28d, 1y)',
                 type: ApplicationCommandOptionTypes.String,
                 required: true
             },
@@ -53,7 +54,7 @@ createTestCommand({
         const { user, duration, delete_until, reason } = args as { user: {user: User, member?: Member}; duration: string; delete_until?: string; reason: string  }
 
         for (var guildId of operatableGuilds) {
-            if (await !hasPermissions(interaction, guildId, interactionMember as Member, user.user.id))
+            if (!hasPermissions(interaction, guildId, interactionMember as Member, user.user.id))
                 return
         }
 
@@ -62,10 +63,16 @@ createTestCommand({
         if (!isPermanent) {
             try {
                 msDuration = ms(duration)
+                if (msDuration < 86400000) {
+                    interaction.respond(`Too little of a duration '${ms(msDuration, {long: true})}': Bans must be at least 1 day long.`)
+                    return
+                }
             } catch (ignored) {
                 interaction.respond(`Invalid duration: '${duration}'.`)
+                return
             }
         }
+
 
         var deleteUntil = 0
         if (delete_until)
@@ -80,13 +87,16 @@ createTestCommand({
 
         const guildBan = { deleteMessageSeconds: deleteUntil }
         const dmChannel = await interaction.bot.helpers.getDmChannel(user.user.id)
-        const unbanTime = Math.floor((closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)) / 1000)
-
-        if (!dmChannel)
-            await banMember(interaction, user.user, guildBan, msDuration, reason, true)
         
-        const durString = isPermanent ? 'permanently' : `for ${ms(msDuration, { long: true })}`
-        const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${unbanTime}:f>\nReason Specified by Moderators: ${reason}`
+        const unbanTime = closestStartOfDay(Date.now()) + closestStartOfDay(msDuration)
+        
+        const durString = isPermanent ? 'permanently' : `for ${ms(unbanTime, { long: true })}`
+
+        if (!dmChannel) {
+            await banMember(interaction, user.user, guildBan, msDuration, durString, reason, true)
+            return
+        }
+        const description = isPermanent ? `Reason Specified by Moderators: ${reason}` : `You will be unbanned on <t:${Math.floor(unbanTime / 1000)}:f>\nReason Specified by Moderators: ${reason}`
 
         await interaction.bot.helpers.sendMessage(dmChannel.id, { embeds: createEmbeds()
             .setColor('#2ecc71')
@@ -96,22 +106,22 @@ createTestCommand({
             .addField('Ban Appeal Forum', 'You may request an appeal through [this link.](https://www.youtube.com/watch?v=dQw4w9WgXcQ)')
             .validate()
         })
-        await banMember(interaction, user.user, guildBan, msDuration, reason, false)
+        await banMember(interaction, user.user, guildBan, msDuration, durString, reason, false)
     }
 })
 
-async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, duration: number, reason: string, failedDm: boolean) {
-    // TODO: Add user to a database, implement automatic unbans with it in mind.
+async function banMember(interaction: Interaction, user: User, guildBan: CreateGuildBan, duration: number, durString: string, reason: string, failedDm: boolean) {
+    recordBan(user.id, duration, reason)
     for (var guildId of operatableGuilds) {
         try {
             await interaction.bot.helpers.banMember(guildId, user.id, guildBan, reason)
         } catch (ex) {
-            logger.error(`Could not ban user ${user.username}. Maybe they are already banned?`)
+            logger.error(`Could not ban user ${user.username}.`)
         }
     }
 
     logger.info(`User ${user.username} has been banned by ${interaction.user.username}.`)
-    var message = `Successfully banned user ${user.username}
+    var message = `Successfully banned user ${user.username} ${durString}.
     \nFor reason: ${reason}`
     if (failedDm) {
         message = message + `\nFailed to DM user about this ban.`
